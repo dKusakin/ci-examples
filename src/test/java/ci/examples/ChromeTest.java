@@ -14,6 +14,7 @@ public class ChromeTest {
 
     @Test
     void startChrome() {
+        System.out.println(System.getProperty("webdriver.chrome.args"));
         driver = new ChromeDriver();
         driver.get("https://ya.ru");
         assertTrue(driver.findElement(By.className("input__box"))
