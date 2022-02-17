@@ -2,27 +2,36 @@ package ci.examples;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Test;
-import org.openqa.selenium.By;
-import org.openqa.selenium.OutputType;
-import org.openqa.selenium.TakesScreenshot;
-import org.openqa.selenium.WebDriver;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.openqa.selenium.*;
 import org.openqa.selenium.chrome.ChromeDriver;
+import org.openqa.selenium.chrome.ChromeOptions;
+import org.openqa.selenium.remote.RemoteWebDriver;
 
 import java.io.FileInputStream;
+import java.net.MalformedURLException;
+import java.net.URI;
+import java.util.Map;
+import java.util.function.Supplier;
+import java.util.stream.Stream;
 
 import static io.qameta.allure.Allure.addAttachment;
 import static io.qameta.allure.Allure.step;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
+import static org.junit.jupiter.params.provider.Arguments.arguments;
 
 public class ChromeTest {
 
     private WebDriver driver;
 
-    @DisplayName("Chrome Test on Agent")
-    @Test
-    void startChrome() {
-        driver = step("Create ChromeDriver", () -> new ChromeDriver());
+    @DisplayName("Chrome Test")
+    @ParameterizedTest(name = "{displayName} - {0}")
+    @MethodSource("driverProvider")
+    void startChrome(String driverName, Supplier<WebDriver> webDriverSupplier) {
+        driver = step("Create " + driverName, webDriverSupplier::get);
 
         step("Maximize browser window", () ->
                 driver.manage().window().maximize());
@@ -35,12 +44,39 @@ public class ChromeTest {
         step("Check search field visible", () ->
                 assertTrue(driver.findElement(By.className("input__box"))
                         .isDisplayed()));
+    }
 
+    private static Stream<Arguments> driverProvider() {
+        return Stream.of(
+                arguments("local ChromeDriver", (Supplier<WebDriver>) ChromeDriver::new),
+                arguments("Selenoid ChromeDriver", (Supplier<WebDriver>) ChromeTest::createRemoteWebdriver)
+        );
+    }
+
+    private static WebDriver createRemoteWebdriver() {
+        final String remoteHubUrl = System.getenv("REMOTE_HUB_URL");
+        assumeTrue(remoteHubUrl != null && !remoteHubUrl.isBlank(),
+                "There is no remote hub url in REMOTE_HUB_URL environment variable");
+
+        MutableCapabilities capabilities = new ChromeOptions();
+        capabilities.setCapability("selenoid:options", Map.of(
+                "enableVNC", true,
+                "enableVideo", false
+        ));
+        capabilities.setCapability("screenResolution", "1920x1080x24");
+        capabilities.setCapability("name", "CI Example");
+        try {
+            return new RemoteWebDriver(URI.create(System.getenv("REMOTE_HUB_URL")).toURL(), capabilities);
+        } catch (MalformedURLException e) {
+            throw new IllegalArgumentException("Cannot resolve hub url");
+        }
     }
 
     @AfterEach
     void closeDriver() {
-        if (driver != null)
+        if (driver != null) {
             driver.close();
+            driver.quit();
+        }
     }
 }
