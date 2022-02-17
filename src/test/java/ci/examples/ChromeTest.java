@@ -20,7 +20,6 @@ import java.util.stream.Stream;
 import static io.qameta.allure.Allure.addAttachment;
 import static io.qameta.allure.Allure.step;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.junit.jupiter.api.Assumptions.assumeTrue;
 import static org.junit.jupiter.params.provider.Arguments.arguments;
 
 public class ChromeTest {
@@ -47,17 +46,18 @@ public class ChromeTest {
     }
 
     private static Stream<Arguments> driverProvider() {
-        return Stream.of(
-                arguments("local ChromeDriver", (Supplier<WebDriver>) ChromeDriver::new),
-                arguments("Selenoid ChromeDriver", (Supplier<WebDriver>) ChromeTest::createRemoteWebdriver)
+        return Stream.of(isRemoteSet() ?
+                arguments("Selenoid ChromeDriver", (Supplier<WebDriver>) ChromeTest::createRemoteWebdriver) :
+                arguments("local ChromeDriver", (Supplier<WebDriver>) ChromeDriver::new)
         );
     }
 
-    private static WebDriver createRemoteWebdriver() {
+    private static boolean isRemoteSet() {
         final String remoteHubUrl = System.getenv("REMOTE_HUB_URL");
-        assumeTrue(remoteHubUrl != null && !remoteHubUrl.isBlank(),
-                "There is no remote hub url in REMOTE_HUB_URL environment variable");
+        return remoteHubUrl != null && !remoteHubUrl.isBlank();
+    }
 
+    private static WebDriver createRemoteWebdriver() {
         MutableCapabilities capabilities = new ChromeOptions();
         capabilities.setCapability("selenoid:options", Map.of(
                 "enableVNC", true,
